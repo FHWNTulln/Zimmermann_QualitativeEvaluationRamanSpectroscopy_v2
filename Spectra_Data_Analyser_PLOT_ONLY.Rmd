@@ -1,0 +1,208 @@
+---
+title: "001 ORIGINAL PLOT ONLY"
+author: "Alexander Amberger"
+date: "`r format(Sys.time(), '%d %B %Y, %X')`"
+output:
+  html_document:
+    df_print: paged
+    self_contained: false # !! FOR PUBLICATION!! true: output in html file | false: output in separate folter
+---
+
+```{r start, message=FALSE, warning=FALSE, include=FALSE}
+start_time = format(Sys.time(), '%X')
+```
+
+## Set your parameters here:
+```{r User Settings}
+
+work_dir <- ("D:/MASTER/Daten/")     # Working directory (name of project folder)
+
+data_folder <- "Data_1"             # Name of your Data folder in your working directory
+groups <- c("A","B")                # Filenames (unique part)
+ending <- ".TXT"                    # Filetype
+legend <- c("control","treated")    # Naming in publication
+
+plot_original <- T                   # plot original spectra: yes = T | no = F
+Legend_pos <- "topright"             # position of legend in plots "topleft" or "topright"
+
+# plot size for output
+knitr::opts_chunk$set(fig.width=10, fig.height=5)
+```
+
+```{r Load required packages, message=FALSE, warning=FALSE, include=FALSE}
+################################
+# Load packages                #
+################################
+
+Packages <- c("dplyr","IDPmisc", "prospectr","dendextend","baseline",
+              "pls","plotrix","knitr","ggplot2","gridExtra","ggpubr",
+              "ChemoSpec", "matrixStats")
+
+for (p in 1:length(Packages)) {
+  test_package <- require(Packages[p], character.only = TRUE)
+  if(test_package == FALSE){
+    install.packages(Packages[p])
+    library(Packages_p)
+  }
+}
+```
+
+```{r Load functions, message=FALSE, warning=FALSE, include=FALSE}
+################################
+# Function for import          #
+################################
+# work_dir: Path to files
+# data_folder: folder with data
+# groups: String vector of unique groupnames
+# ending: Filetype
+# Maximum 8 Groups possible 
+
+Import.data <- function(work_dir, data_folder, groups, ending) {
+  
+  location <- paste(work_dir, data_folder, sep="")
+  
+  Files_full <- list.files(path = location, pattern = ending)
+  x <- c()
+  for (group in groups) {
+    x <- c(x,grep(pattern = group, x = Files_full))
+  }
+  #print(x)
+  Files <- Files_full[x]
+  #print(Files)
+  
+  import <- function(data) {
+    setwd(location)
+    df <- try(read.csv(data, header = FALSE, 
+                       sep = ",",              
+                       dec = "." )) 
+    setwd(work_dir)
+    return(df)  
+  }
+  
+  # read files
+  Raw.list <- lapply(Files,import)
+  #print(Raw.list)
+  #combine list of dataframes
+  Raw.data <- do.call("cbind", Raw.list)
+  #print(Raw.data)
+  # remove wavenumbers
+  Spectra <- as.data.frame(t(Raw.data[,-c(which(colnames(Raw.data) == "V1"))]))
+  
+  # extract wavenumbers and set to column names
+  Wavenumber <- as.numeric(Raw.data[,1])
+  colnames(Spectra) <- Wavenumber
+  
+  # check for groupvector
+  if(groups[1] != Files[1]){
+    # create groupvector
+    groups_v <- c(1:length(Files))
+    #print(groups_v)
+    for (i in 1:length(groups)){
+      Pos <- c(grep(pattern = as.character(groups[i]), x = Files)) # check for parts of filenames
+      #print(" ")
+      #print(Pos)
+      groups_v[Pos] <- groups[i] # fill in vector
+      #print(groups_v)
+    }
+  }else{
+    groups_v <- sub(pattern=ending, x=groups, replacement="")
+  }
+  
+  #create a list of groups, wavenumbers and spectra
+  OriginalData <- list(Wavenumber,Spectra,as.factor(groups_v))
+  names(OriginalData) <- c("Wavenumber","Spectra","Groups")
+  rownames(OriginalData$Spectra) <- 1:length(OriginalData$Groups)
+  
+  return(OriginalData)
+}
+
+################################
+# Function for Spectra plots   #
+################################
+# Liste = list with Wavenumber, Spectra, Groups
+# Spektren = which Spectra should be plotted
+# Wellenzahl = Vektor with wavenumbers
+# area = which area should be plotted
+# Code = vector for colours 
+# Bereich = select wavenumbers
+
+plot.spectra <- function(Liste,
+                         Spektren,
+                         Wellenzahl = Liste$Wavenumber,
+                         area = c(max(Wellenzahl),min(Wellenzahl)), 
+                         Code = Liste$Groups, 
+                         Bereich = Sample,
+                         main = main){
+  
+  if(Spektren == "Spectra_d"){          # check for derivatives
+    Wellenzahl = Liste$Wavenumber_d     
+    Bereich = Sample_d
+  }
+  
+  matplot(x = Wellenzahl[Bereich],
+          y = t(as.matrix(Liste[[Spektren]][,Bereich])),
+          lty = 1, 
+          type = "l", 
+          col = Code,
+          main = main,
+          xlab = "Wavenumber [1/cm]",
+          ylab = "Intensity [-]",
+          font = 2, 
+          font.lab = 2,  ###font = 2 ist Fett gedruckt
+          lab = c(20,15,10), 
+          xlim = area,
+          ylim = c(min(Liste[[Spektren]][,Bereich]),
+                   max(Liste[[Spektren]][,Bereich])), 
+          bty = "l", 
+          family = "sans", 
+          xaxs = "i")
+  grid(lwd = 0.8)
+}
+```
+
+```{r Import data, message=FALSE, warning=FALSE, include=FALSE}
+################################
+# Import data                  #
+################################
+
+Data <- Import.data(work_dir = work_dir, data_folder = data_folder, groups = groups, ending = ending)
+```
+
+~~~
+YOUR TEXT HERE...
+~~~
+
+### plot of original spectra
+```{r plot original spectra, echo=FALSE, message=FALSE, warning=FALSE}
+################################
+# Plot of the original spectra #
+################################
+
+if (plot_original == T) {
+  
+  plot.spectra(Liste = Data,
+               Spektren = "Spectra",
+               Bereich = c(1:length(Data$Wavenumber)),
+               area = c(max(Data$Wavenumber),min(Data$Wavenumber)),
+               main = paste("Original Spectra: ","max Wavenumber = ",
+                            max(Data$Wavenumber),", min Wavenumber = ",
+                            min(Data$Wavenumber), 
+                            sep=""))
+  
+  legend(Legend_pos, 
+         legend = legend, 
+         pch = 16, 
+         col = unique(Data$Groups), 
+         inset = 0.05, 
+         bty = "n")
+  
+}
+```
+
+```{r end, message=FALSE, warning=FALSE, include=FALSE}
+end_time = format(Sys.time(), '%X')
+```
+
+```{r used time, echo=FALSE, message=TRUE, warning=FALSE}
+print(paste("Time used for analysis:", round(as.difftime(end_time, units = "mins")-as.difftime(start_time, units = "mins"),digits=2),"minutes"))
+```
